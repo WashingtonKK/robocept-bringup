@@ -1,15 +1,14 @@
 <!--
-  Robocept robot URDF with Gazebo simulation plugins.
+  Robocept robot URDF with Ignition Gazebo (Fortress) simulation plugins.
 
-  This model defines a 4-wheeled differential-drive robot with:
+  4-wheeled differential-drive robot with:
     - LiDAR (RPLIDAR A2 equivalent) on top
-    - Depth camera (RealSense D435i equivalent) at front
-    - Diff-drive Gazebo plugin for /cmd_vel and /odom
-    - Ray sensor plugin for /robocept/lidar/scan
-    - Camera plugin for /robocept/camera/* topics
+    - RGBD camera (RealSense D435i equivalent) at front
+    - Diff-drive plugin for /cmd_vel and /odom
+    - GPU lidar plugin for /robocept/lidar/scan
+    - RGBD camera plugin for color + depth
 
-  Physical dimensions are approximate — update once you have
-  the actual chassis.
+  Ignition topics are bridged to ROS 2 via ros_gz_bridge in the launch file.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robocept">
 
@@ -97,11 +96,9 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- ============== Wheels (4WD differential) ============== -->
-  <!-- Front wheels -->
+  <!-- ============== Wheels ============== -->
   <xacro:wheel name="front_left"  x_offset="${chassis_length/4}"  y_offset="${wheel_separation/2}"/>
   <xacro:wheel name="front_right" x_offset="${chassis_length/4}"  y_offset="${-wheel_separation/2}"/>
-  <!-- Rear wheels -->
   <xacro:wheel name="rear_left"   x_offset="${-chassis_length/4}" y_offset="${wheel_separation/2}"/>
   <xacro:wheel name="rear_right"  x_offset="${-chassis_length/4}" y_offset="${-wheel_separation/2}"/>
 
@@ -153,7 +150,6 @@
     <origin xyz="${chassis_length/2} 0 ${chassis_height/2 + wheel_radius}" rpy="0 0 0"/>
   </joint>
 
-  <!-- Camera optical frame (Z forward, X right, Y down) -->
   <link name="camera_color_optical_frame"/>
   <joint name="camera_optical_joint" type="fixed">
     <parent link="camera_link"/>
@@ -161,49 +157,35 @@
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
-  <!-- ============== Gazebo Plugins ============== -->
+  <!-- ============== Ignition Gazebo Plugins ============== -->
 
-  <!-- Diff-drive controller -->
+  <!-- Diff-drive controller (publishes on Ignition topics, bridged to ROS) -->
   <gazebo>
-    <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
-      <ros>
-        <remapping>cmd_vel:=cmd_vel</remapping>
-        <remapping>odom:=odom</remapping>
-      </ros>
-
-      <num_wheel_pairs>2</num_wheel_pairs>
-
+    <plugin filename="ignition-gazebo-diff-drive-system" name="ignition::gazebo::systems::DiffDrive">
       <left_joint>front_left_wheel_joint</left_joint>
-      <right_joint>front_right_wheel_joint</right_joint>
       <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>front_right_wheel_joint</right_joint>
       <right_joint>rear_right_wheel_joint</right_joint>
-
       <wheel_separation>${wheel_separation}</wheel_separation>
-      <wheel_separation>${wheel_separation}</wheel_separation>
-      <wheel_diameter>${wheel_radius * 2}</wheel_diameter>
-      <wheel_diameter>${wheel_radius * 2}</wheel_diameter>
-
-      <max_wheel_torque>5.0</max_wheel_torque>
-      <max_wheel_acceleration>2.0</max_wheel_acceleration>
-
-      <odometry_frame>odom</odometry_frame>
-      <robot_base_frame>base_footprint</robot_base_frame>
-
-      <publish_odom>true</publish_odom>
-      <publish_odom_tf>true</publish_odom_tf>
-      <publish_wheel_tf>false</publish_wheel_tf>
-
-      <update_rate>20.0</update_rate>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <max_linear_acceleration>2.0</max_linear_acceleration>
+      <odom_publish_frequency>20</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
     </plugin>
   </gazebo>
 
-  <!-- LiDAR (RPLIDAR A2 equivalent: 360 deg, ~10 Hz, 12m range) -->
+  <!-- LiDAR sensor (GPU lidar in Ignition) -->
   <gazebo reference="robocept_lidar_frame">
-    <sensor type="ray" name="rplidar">
+    <sensor name="rplidar" type="gpu_lidar">
       <always_on>true</always_on>
-      <update_rate>10.0</update_rate>
+      <update_rate>10</update_rate>
       <visualize>true</visualize>
-      <ray>
+      <topic>lidar/scan</topic>
+      <lidar>
         <scan>
           <horizontal>
             <samples>360</samples>
@@ -211,6 +193,12 @@
             <min_angle>-3.14159</min_angle>
             <max_angle>3.14159</max_angle>
           </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
         </scan>
         <range>
           <min>0.15</min>
@@ -222,58 +210,18 @@
           <mean>0.0</mean>
           <stddev>0.01</stddev>
         </noise>
-      </ray>
-      <plugin name="lidar_plugin" filename="libgazebo_ros_ray_sensor.so">
-        <ros>
-          <remapping>~/out:=/robocept/lidar/scan</remapping>
-        </ros>
-        <output_type>sensor_msgs/LaserScan</output_type>
-        <frame_name>robocept_lidar_frame</frame_name>
-      </plugin>
+      </lidar>
     </sensor>
   </gazebo>
 
-  <!-- RGB Camera (D435i color stream equivalent: 640x480, 30 Hz) -->
+  <!-- RGBD Camera (color + depth) -->
   <gazebo reference="camera_link">
-    <sensor type="camera" name="realsense_color">
+    <sensor name="realsense" type="rgbd_camera">
       <always_on>true</always_on>
-      <update_rate>30.0</update_rate>
-      <visualize>false</visualize>
-      <camera name="color">
+      <update_rate>15</update_rate>
+      <topic>camera</topic>
+      <camera>
         <horizontal_fov>1.2112</horizontal_fov>
-        <image>
-          <width>640</width>
-          <height>480</height>
-          <format>R8G8B8</format>
-        </image>
-        <clip>
-          <near>0.1</near>
-          <far>100</far>
-        </clip>
-        <noise>
-          <type>gaussian</type>
-          <mean>0.0</mean>
-          <stddev>0.007</stddev>
-        </noise>
-      </camera>
-      <plugin name="camera_color_plugin" filename="libgazebo_ros_camera.so">
-        <ros>
-          <remapping>image_raw:=/robocept/camera/color/image_raw</remapping>
-          <remapping>camera_info:=/robocept/camera/color/camera_info</remapping>
-        </ros>
-        <frame_name>camera_color_optical_frame</frame_name>
-      </plugin>
-    </sensor>
-  </gazebo>
-
-  <!-- Depth Camera (D435i depth stream equivalent) -->
-  <gazebo reference="camera_link">
-    <sensor type="depth" name="realsense_depth">
-      <always_on>true</always_on>
-      <update_rate>30.0</update_rate>
-      <visualize>false</visualize>
-      <camera name="depth">
-        <horizontal_fov>1.5009</horizontal_fov>
         <image>
           <width>640</width>
           <height>480</height>
@@ -283,44 +231,33 @@
           <near>0.1</near>
           <far>10.0</far>
         </clip>
+        <depth_camera>
+          <clip>
+            <near>0.1</near>
+            <far>10.0</far>
+          </clip>
+        </depth_camera>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
       </camera>
-      <plugin name="camera_depth_plugin" filename="libgazebo_ros_camera.so">
-        <ros>
-          <remapping>image_raw:=/robocept/camera/depth/image_rect_raw</remapping>
-          <remapping>camera_info:=/robocept/camera/depth/camera_info</remapping>
-          <remapping>points:=/robocept/camera/depth/points</remapping>
-        </ros>
-        <frame_name>camera_color_optical_frame</frame_name>
-      </plugin>
     </sensor>
   </gazebo>
 
   <!-- Wheel friction -->
-  <xacro:macro name="wheel_gazebo" params="name">
-    <gazebo reference="${name}_wheel_link">
-      <mu1>1.0</mu1>
-      <mu2>1.0</mu2>
-      <kp>1000000.0</kp>
-      <kd>100.0</kd>
-      <material>Gazebo/DarkGrey</material>
-    </gazebo>
-  </xacro:macro>
-
-  <xacro:wheel_gazebo name="front_left"/>
-  <xacro:wheel_gazebo name="front_right"/>
-  <xacro:wheel_gazebo name="rear_left"/>
-  <xacro:wheel_gazebo name="rear_right"/>
-
-  <gazebo reference="base_link">
-    <material>Gazebo/Blue</material>
+  <gazebo reference="front_left_wheel_link">
+    <mu1>1.0</mu1><mu2>1.0</mu2>
   </gazebo>
-
-  <gazebo reference="robocept_lidar_frame">
-    <material>Gazebo/Black</material>
+  <gazebo reference="front_right_wheel_link">
+    <mu1>1.0</mu1><mu2>1.0</mu2>
   </gazebo>
-
-  <gazebo reference="camera_link">
-    <material>Gazebo/Grey</material>
+  <gazebo reference="rear_left_wheel_link">
+    <mu1>1.0</mu1><mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="rear_right_wheel_link">
+    <mu1>1.0</mu1><mu2>1.0</mu2>
   </gazebo>
 
 </robot>

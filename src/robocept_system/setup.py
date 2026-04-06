@@ -19,7 +19,7 @@ setup(
         (os.path.join('share', package_name, 'urdf'),
             glob('urdf/*.urdf.xacro') + glob('urdf/*.urdf')),
         (os.path.join('share', package_name, 'worlds'),
-            glob('worlds/*.world')),
+            glob('worlds/*.world') + glob('worlds/*.sdf')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

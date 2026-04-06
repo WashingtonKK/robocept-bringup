@@ -1,12 +1,11 @@
 """
-Launch the full robocept simulation in Gazebo.
+Launch robocept simulation in Ignition Gazebo (Fortress).
 
 Starts:
-  1. Gazebo with the test world
+  1. Ignition Gazebo with the test world
   2. Robot state publisher (URDF → TF)
-  3. Robot spawner (places robot in Gazebo)
-  4. Health monitor (monitors simulated sensor topics)
-  5. Navigation stack (obstacle avoidance + waypoint nav)
+  3. Spawn robot in Ignition
+  4. ros_gz_bridge (bridges Ignition topics ↔ ROS 2 topics)
 
 After launch, drive with:
   ros2 run teleop_twist_keyboard teleop_twist_keyboard
@@ -17,67 +16,70 @@ import os
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
-    ExecuteProcess,
     IncludeLaunchDescription,
+    SetEnvironmentVariable,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import (
-    Command,
-    LaunchConfiguration,
-    PathJoinSubstitution,
-)
+from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
     system_dir = get_package_share_directory('robocept_system')
+    urdf_path = os.path.join(system_dir, 'urdf', 'robocept.urdf.xacro')
+    world_path = os.path.join(system_dir, 'worlds', 'robocept_test.sdf')
 
     # Arguments.
-    world_arg = DeclareLaunchArgument(
-        'world',
-        default_value=os.path.join(system_dir, 'worlds', 'robocept_test.world'),
-        description='Path to Gazebo world file',
-    )
-
     use_sim_time = DeclareLaunchArgument(
         'use_sim_time', default_value='true',
-        description='Use simulation time',
+    )
+    headless = DeclareLaunchArgument(
+        'headless', default_value='true',
+        description='Run Ignition without GUI (for headless Jetson)',
     )
 
-    # 1. Gazebo.
-    gazebo = IncludeLaunchDescription(
+    # Set IGN resource path so Ignition can find our models.
+    ign_resource_path = SetEnvironmentVariable(
+        'IGN_GAZEBO_RESOURCE_PATH',
+        os.path.join(system_dir, 'worlds'),
+    )
+
+    # 1. Ignition Gazebo.
+    ign_gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
-                FindPackageShare('gazebo_ros'),
-                'launch', 'gazebo.launch.py',
+                FindPackageShare('ros_gz_sim'),
+                'launch', 'gz_sim.launch.py',
             ])
         ),
         launch_arguments={
-            'world': LaunchConfiguration('world'),
+            'gz_args': ['-r -s ', world_path],  # -s = server only (headless)
         }.items(),
     )
 
-    # 2. Robot state publisher (URDF → TF).
-    urdf_path = os.path.join(system_dir, 'urdf', 'robocept.urdf.xacro')
+    # 2. Robot state publisher.
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         parameters=[{
-            'robot_description': Command(['xacro ', urdf_path]),
+            'robot_description': ParameterValue(
+                Command(['xacro ', urdf_path]), value_type=str
+            ),
             'use_sim_time': LaunchConfiguration('use_sim_time'),
         }],
         output='screen',
     )
 
-    # 3. Spawn robot in Gazebo.
+    # 3. Spawn robot.
     spawn_robot = Node(
-        package='gazebo_ros',
-        executable='spawn_entity.py',
+        package='ros_gz_sim',
+        executable='create',
         arguments=[
             '-topic', 'robot_description',
-            '-entity', 'robocept',
+            '-name', 'robocept',
             '-x', '0.0',
             '-y', '0.0',
             '-z', '0.05',
@@ -85,45 +87,47 @@ def generate_launch_description():
         output='screen',
     )
 
-    # 4. Health monitor (optional, monitors sim topics).
-    health_monitor = Node(
-        package='robocept_health',
-        executable='perception_health_monitor',
-        name='perception_health_monitor',
-        namespace='robocept',
-        parameters=[
-            os.path.join(system_dir, 'config', 'health_monitor_sim.yaml'),
-            {'use_sim_time': LaunchConfiguration('use_sim_time')},
+    # 4. ros_gz_bridge: bridge Ignition topics to ROS 2.
+    # Format: ign_topic@ros_msg_type[ign_msg_type]
+    # Directions: @ = bidirectional, @...[ = IGN→ROS, ]...@ = ROS→IGN
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            # cmd_vel: ROS → IGN
+            '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
+            # odom: IGN → ROS
+            '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
+            # LiDAR: IGN → ROS
+            '/lidar/scan@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
+            # RGB camera: IGN → ROS
+            '/camera/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+            '/camera/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+            # Depth camera: IGN → ROS
+            '/camera/depth_image@sensor_msgs/msg/Image[ignition.msgs.Image',
+            # TF: IGN → ROS
+            '/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
+            # Clock: IGN → ROS
+            '/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock',
         ],
+        remappings=[
+            ('/lidar/scan', '/robocept/lidar/scan'),
+            ('/camera/image', '/robocept/camera/color/image_raw'),
+            ('/camera/camera_info', '/robocept/camera/color/camera_info'),
+            ('/camera/depth_image', '/robocept/camera/depth/image_rect_raw'),
+        ],
+        parameters=[{
+            'use_sim_time': LaunchConfiguration('use_sim_time'),
+        }],
         output='screen',
     )
 
-    # 5. Navigation (obstacle avoidance).
-    nav_nodes = []
-    try:
-        nav_config = os.path.join(
-            get_package_share_directory('robocept_nav'),
-            'config', 'nav.yaml',
-        )
-        nav_nodes.append(Node(
-            package='robocept_nav',
-            executable='obstacle_avoider',
-            name='obstacle_avoider',
-            namespace='robocept',
-            parameters=[
-                nav_config,
-                {'use_sim_time': LaunchConfiguration('use_sim_time')},
-            ],
-            output='screen',
-        ))
-    except Exception:
-        pass  # robocept_nav not built yet — skip
-
     return LaunchDescription([
-        world_arg,
         use_sim_time,
-        gazebo,
+        headless,
+        ign_resource_path,
+        ign_gazebo,
         robot_state_publisher,
         spawn_robot,
-        health_monitor,
-    ] + nav_nodes)
+        bridge,
+    ])
