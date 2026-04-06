@@ -60,8 +60,14 @@ ros2 launch robocept_system robot.launch.py
 # Headless Gazebo Sim only
 ros2 launch robocept_system sim.launch.py headless:=true
 
+# Headless Gazebo Sim with robocept_base in the loop
+ros2 launch robocept_system sim_base.launch.py headless:=true
+
 # Headless Gazebo Sim + obstacle avoidance + sim health monitor
 ros2 launch robocept_system sim_obstacle.launch.py headless:=true
+
+# Same as above, but with robocept_base in the loop too
+ros2 launch robocept_system sim_obstacle_base.launch.py headless:=true
 
 # Safe teleop into the obstacle avoider (run in a second terminal)
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \

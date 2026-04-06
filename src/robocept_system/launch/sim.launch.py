@@ -34,6 +34,8 @@ def generate_launch_description():
     world_path = os.path.join(system_dir, 'worlds', 'robocept_test.sdf')
     use_sim_time_config = LaunchConfiguration('use_sim_time')
     headless_config = LaunchConfiguration('headless')
+    drive_cmd_topic_config = LaunchConfiguration('drive_cmd_topic')
+    odom_topic_config = LaunchConfiguration('odom_topic')
 
     # Arguments.
     use_sim_time = DeclareLaunchArgument(
@@ -42,6 +44,16 @@ def generate_launch_description():
     headless = DeclareLaunchArgument(
         'headless', default_value='true',
         description='Run Ignition without GUI (for headless Jetson)',
+    )
+    drive_cmd_topic = DeclareLaunchArgument(
+        'drive_cmd_topic',
+        default_value='/cmd_vel',
+        description='ROS topic bridged into Gazebo for drive commands.',
+    )
+    odom_topic = DeclareLaunchArgument(
+        'odom_topic',
+        default_value='/odom',
+        description='ROS topic bridged from Gazebo odometry.',
     )
 
     # Set IGN resource path so Ignition can find our models.
@@ -128,6 +140,8 @@ def generate_launch_description():
             '/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock',
         ],
         remappings=[
+            ('/cmd_vel', drive_cmd_topic_config),
+            ('/odom', odom_topic_config),
             ('/lidar/scan', '/robocept/lidar/scan'),
             ('/camera/image', '/robocept/camera/color/image_raw'),
             ('/camera/camera_info', '/robocept/camera/color/camera_info'),
@@ -142,6 +156,8 @@ def generate_launch_description():
     return LaunchDescription([
         use_sim_time,
         headless,
+        drive_cmd_topic,
+        odom_topic,
         ign_resource_path,
         ign_gazebo_headless,
         ign_gazebo_gui,
