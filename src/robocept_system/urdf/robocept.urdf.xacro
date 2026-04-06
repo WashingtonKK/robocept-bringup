@@ -1,50 +1,326 @@
 <!--
-  Robocept robot URDF — placeholder.
+  Robocept robot URDF with Gazebo simulation plugins.
 
-  TODO: Replace this with your actual robot model once you have the chassis.
-  This minimal URDF defines the base frame and sensor mount points so that
-  the TF tree is valid even before the full model exists.
+  This model defines a 4-wheeled differential-drive robot with:
+    - LiDAR (RPLIDAR A2 equivalent) on top
+    - Depth camera (RealSense D435i equivalent) at front
+    - Diff-drive Gazebo plugin for /cmd_vel and /odom
+    - Ray sensor plugin for /robocept/lidar/scan
+    - Camera plugin for /robocept/camera/* topics
 
-  For now, the static_transforms.yaml handles sensor TF. Once this URDF
-  is complete, remove the static transform publishers from robot.launch.py
-  and use robot_state_publisher instead.
+  Physical dimensions are approximate — update once you have
+  the actual chassis.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robocept">
 
-  <!-- Base link (center of robot at ground level) -->
+  <!-- ============== Properties ============== -->
+  <xacro:property name="chassis_length" value="0.30"/>
+  <xacro:property name="chassis_width" value="0.25"/>
+  <xacro:property name="chassis_height" value="0.08"/>
+  <xacro:property name="chassis_mass" value="3.0"/>
+
+  <xacro:property name="wheel_radius" value="0.04"/>
+  <xacro:property name="wheel_width" value="0.03"/>
+  <xacro:property name="wheel_mass" value="0.2"/>
+  <xacro:property name="wheel_separation" value="0.28"/>
+
+  <!-- ============== Macros ============== -->
+  <xacro:macro name="inertial_box" params="mass x y z">
+    <inertial>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass*(y*y+z*z)/12}" ixy="0" ixz="0"
+               iyy="${mass*(x*x+z*z)/12}" iyz="0"
+               izz="${mass*(x*x+y*y)/12}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="inertial_cylinder" params="mass r l">
+    <inertial>
+      <mass value="${mass}"/>
+      <inertia ixx="${mass*(3*r*r+l*l)/12}" ixy="0" ixz="0"
+               iyy="${mass*(3*r*r+l*l)/12}" iyz="0"
+               izz="${mass*r*r/2}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="wheel" params="name x_offset y_offset">
+    <link name="${name}_wheel_link">
+      <visual>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="dark_grey">
+          <color rgba="0.2 0.2 0.2 1"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <xacro:inertial_cylinder mass="${wheel_mass}" r="${wheel_radius}" l="${wheel_width}"/>
+    </link>
+    <joint name="${name}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${name}_wheel_link"/>
+      <origin xyz="${x_offset} ${y_offset} 0" rpy="${-pi/2} 0 0"/>
+      <axis xyz="0 0 1"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ============== Base ============== -->
+  <link name="base_footprint"/>
+
   <link name="base_link">
     <visual>
       <geometry>
-        <box size="0.30 0.25 0.10"/>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
       </geometry>
-      <origin xyz="0 0 0.05"/>
+      <origin xyz="0 0 ${chassis_height/2 + wheel_radius}"/>
+      <material name="blue">
+        <color rgba="0.1 0.3 0.8 1"/>
+      </material>
     </visual>
+    <collision>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <origin xyz="0 0 ${chassis_height/2 + wheel_radius}"/>
+    </collision>
+    <xacro:inertial_box mass="${chassis_mass}"
+                        x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
   </link>
 
-  <!-- Footprint (ground projection) -->
-  <link name="base_footprint"/>
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <origin xyz="0 0 0.0" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- LiDAR mount point -->
-  <link name="robocept_lidar_frame"/>
+  <!-- ============== Wheels (4WD differential) ============== -->
+  <!-- Front wheels -->
+  <xacro:wheel name="front_left"  x_offset="${chassis_length/4}"  y_offset="${wheel_separation/2}"/>
+  <xacro:wheel name="front_right" x_offset="${chassis_length/4}"  y_offset="${-wheel_separation/2}"/>
+  <!-- Rear wheels -->
+  <xacro:wheel name="rear_left"   x_offset="${-chassis_length/4}" y_offset="${wheel_separation/2}"/>
+  <xacro:wheel name="rear_right"  x_offset="${-chassis_length/4}" y_offset="${-wheel_separation/2}"/>
+
+  <!-- ============== LiDAR ============== -->
+  <link name="robocept_lidar_frame">
+    <visual>
+      <geometry>
+        <cylinder radius="0.035" length="0.04"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.035" length="0.04"/>
+      </geometry>
+    </collision>
+    <xacro:inertial_cylinder mass="0.15" r="0.035" l="0.04"/>
+  </link>
+
   <joint name="base_to_lidar" type="fixed">
     <parent link="base_link"/>
     <child link="robocept_lidar_frame"/>
-    <!-- TODO: Measure actual mounting position -->
-    <origin xyz="0.0 0.0 0.15" rpy="0 0 3.14159"/>
+    <origin xyz="0.0 0.0 ${chassis_height + wheel_radius + 0.02}" rpy="0 0 0"/>
   </joint>
 
-  <!-- Camera mount point -->
-  <link name="camera_link"/>
+  <!-- ============== Camera ============== -->
+  <link name="camera_link">
+    <visual>
+      <geometry>
+        <box size="0.025 0.09 0.025"/>
+      </geometry>
+      <material name="silver">
+        <color rgba="0.7 0.7 0.7 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.025 0.09 0.025"/>
+      </geometry>
+    </collision>
+    <xacro:inertial_box mass="0.072" x="0.025" y="0.09" z="0.025"/>
+  </link>
+
   <joint name="base_to_camera" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <!-- TODO: Measure actual mounting position -->
-    <origin xyz="0.10 0.0 0.12" rpy="0 0 0"/>
+    <origin xyz="${chassis_length/2} 0 ${chassis_height/2 + wheel_radius}" rpy="0 0 0"/>
   </joint>
+
+  <!-- Camera optical frame (Z forward, X right, Y down) -->
+  <link name="camera_color_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_color_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ============== Gazebo Plugins ============== -->
+
+  <!-- Diff-drive controller -->
+  <gazebo>
+    <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
+      <ros>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom</remapping>
+      </ros>
+
+      <num_wheel_pairs>2</num_wheel_pairs>
+
+      <left_joint>front_left_wheel_joint</left_joint>
+      <right_joint>front_right_wheel_joint</right_joint>
+      <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>rear_right_wheel_joint</right_joint>
+
+      <wheel_separation>${wheel_separation}</wheel_separation>
+      <wheel_separation>${wheel_separation}</wheel_separation>
+      <wheel_diameter>${wheel_radius * 2}</wheel_diameter>
+      <wheel_diameter>${wheel_radius * 2}</wheel_diameter>
+
+      <max_wheel_torque>5.0</max_wheel_torque>
+      <max_wheel_acceleration>2.0</max_wheel_acceleration>
+
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <publish_wheel_tf>false</publish_wheel_tf>
+
+      <update_rate>20.0</update_rate>
+    </plugin>
+  </gazebo>
+
+  <!-- LiDAR (RPLIDAR A2 equivalent: 360 deg, ~10 Hz, 12m range) -->
+  <gazebo reference="robocept_lidar_frame">
+    <sensor type="ray" name="rplidar">
+      <always_on>true</always_on>
+      <update_rate>10.0</update_rate>
+      <visualize>true</visualize>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.15</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </ray>
+      <plugin name="lidar_plugin" filename="libgazebo_ros_ray_sensor.so">
+        <ros>
+          <remapping>~/out:=/robocept/lidar/scan</remapping>
+        </ros>
+        <output_type>sensor_msgs/LaserScan</output_type>
+        <frame_name>robocept_lidar_frame</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- RGB Camera (D435i color stream equivalent: 640x480, 30 Hz) -->
+  <gazebo reference="camera_link">
+    <sensor type="camera" name="realsense_color">
+      <always_on>true</always_on>
+      <update_rate>30.0</update_rate>
+      <visualize>false</visualize>
+      <camera name="color">
+        <horizontal_fov>1.2112</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>100</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+      <plugin name="camera_color_plugin" filename="libgazebo_ros_camera.so">
+        <ros>
+          <remapping>image_raw:=/robocept/camera/color/image_raw</remapping>
+          <remapping>camera_info:=/robocept/camera/color/camera_info</remapping>
+        </ros>
+        <frame_name>camera_color_optical_frame</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- Depth Camera (D435i depth stream equivalent) -->
+  <gazebo reference="camera_link">
+    <sensor type="depth" name="realsense_depth">
+      <always_on>true</always_on>
+      <update_rate>30.0</update_rate>
+      <visualize>false</visualize>
+      <camera name="depth">
+        <horizontal_fov>1.5009</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+      </camera>
+      <plugin name="camera_depth_plugin" filename="libgazebo_ros_camera.so">
+        <ros>
+          <remapping>image_raw:=/robocept/camera/depth/image_rect_raw</remapping>
+          <remapping>camera_info:=/robocept/camera/depth/camera_info</remapping>
+          <remapping>points:=/robocept/camera/depth/points</remapping>
+        </ros>
+        <frame_name>camera_color_optical_frame</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- Wheel friction -->
+  <xacro:macro name="wheel_gazebo" params="name">
+    <gazebo reference="${name}_wheel_link">
+      <mu1>1.0</mu1>
+      <mu2>1.0</mu2>
+      <kp>1000000.0</kp>
+      <kd>100.0</kd>
+      <material>Gazebo/DarkGrey</material>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:wheel_gazebo name="front_left"/>
+  <xacro:wheel_gazebo name="front_right"/>
+  <xacro:wheel_gazebo name="rear_left"/>
+  <xacro:wheel_gazebo name="rear_right"/>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+
+  <gazebo reference="robocept_lidar_frame">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="camera_link">
+    <material>Gazebo/Grey</material>
+  </gazebo>
 
 </robot>

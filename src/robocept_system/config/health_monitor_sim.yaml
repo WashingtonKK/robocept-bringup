@@ -1,0 +1,32 @@
+# Health monitor configuration for Gazebo simulation.
+#
+# Same structure as the real health_monitor.yaml but with
+# Gazebo-expected frame rates. No IMU in simulation.
+
+/**:
+  ros__parameters:
+    publish_rate_hz: 1.0
+    stale_timeout_sec: 3.0
+    warn_frequency_ratio: 0.7
+    error_frequency_ratio: 0.3
+    frequency_window_sec: 5.0
+
+    topics:
+      - "/robocept/lidar/scan"
+      - "/robocept/camera/color/image_raw"
+      - "/robocept/camera/depth/image_rect_raw"
+
+    msg_types:
+      - "sensor_msgs/msg/LaserScan"
+      - "sensor_msgs/msg/Image"
+      - "sensor_msgs/msg/Image"
+
+    expected_hz_values:
+      - 10.0     # Simulated LiDAR
+      - 30.0     # Simulated color camera
+      - 30.0     # Simulated depth camera
+
+    sensor_names:
+      - "lidar"
+      - "sim_color_camera"
+      - "sim_depth_camera"
