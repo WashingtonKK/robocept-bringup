@@ -1,0 +1,29 @@
+# Static transforms from base_link to sensor frames.
+#
+# IMPORTANT: Measure these on your actual robot and update.
+# Units: meters (XYZ), radians (RPY).
+# Convention: transform is FROM base_link TO the sensor frame.
+#
+# These are temporary — once you have a URDF, the robot_state_publisher
+# handles all transforms and this file becomes unnecessary.
+
+static_transforms:
+  # LiDAR mounted on top of the robot, centered, facing forward.
+  - parent_frame: "base_link"
+    child_frame: "robocept_lidar_frame"
+    x: 0.0        # forward from base center (meters)
+    y: 0.0        # left from base center
+    z: 0.15       # height above base_link origin
+    roll: 0.0
+    pitch: 0.0
+    yaw: 3.14159  # RPLIDAR A2 often mounted rotated 180 deg — verify for your mount
+
+  # RealSense D435i mounted at front of robot.
+  - parent_frame: "base_link"
+    child_frame: "camera_link"
+    x: 0.10       # 10cm forward from base center
+    y: 0.0        # centered
+    z: 0.12       # 12cm above base_link origin
+    roll: 0.0
+    pitch: 0.0
+    yaw: 0.0

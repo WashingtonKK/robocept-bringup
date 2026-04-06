@@ -1,0 +1,50 @@
+<!--
+  Robocept robot URDF — placeholder.
+
+  TODO: Replace this with your actual robot model once you have the chassis.
+  This minimal URDF defines the base frame and sensor mount points so that
+  the TF tree is valid even before the full model exists.
+
+  For now, the static_transforms.yaml handles sensor TF. Once this URDF
+  is complete, remove the static transform publishers from robot.launch.py
+  and use robot_state_publisher instead.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robocept">
+
+  <!-- Base link (center of robot at ground level) -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.30 0.25 0.10"/>
+      </geometry>
+      <origin xyz="0 0 0.05"/>
+    </visual>
+  </link>
+
+  <!-- Footprint (ground projection) -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- LiDAR mount point -->
+  <link name="robocept_lidar_frame"/>
+  <joint name="base_to_lidar" type="fixed">
+    <parent link="base_link"/>
+    <child link="robocept_lidar_frame"/>
+    <!-- TODO: Measure actual mounting position -->
+    <origin xyz="0.0 0.0 0.15" rpy="0 0 3.14159"/>
+  </joint>
+
+  <!-- Camera mount point -->
+  <link name="camera_link"/>
+  <joint name="base_to_camera" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <!-- TODO: Measure actual mounting position -->
+    <origin xyz="0.10 0.0 0.12" rpy="0 0 0"/>
+  </joint>
+
+</robot>

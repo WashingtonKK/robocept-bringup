@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>robocept_system</name>
+  <version>0.1.0</version>
+  <description>Top-level bringup for the robocept robot</description>
+  <maintainer email="washingtonkigan@gmail.com">WashingtonKK</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>robocept_bringup</exec_depend>
+  <exec_depend>robocept_base</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
