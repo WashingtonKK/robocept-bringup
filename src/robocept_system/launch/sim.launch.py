@@ -19,6 +19,7 @@ from launch.actions import (
     IncludeLaunchDescription,
     SetEnvironmentVariable,
 )
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -31,6 +32,8 @@ def generate_launch_description():
     system_dir = get_package_share_directory('robocept_system')
     urdf_path = os.path.join(system_dir, 'urdf', 'robocept.urdf.xacro')
     world_path = os.path.join(system_dir, 'worlds', 'robocept_test.sdf')
+    use_sim_time_config = LaunchConfiguration('use_sim_time')
+    headless_config = LaunchConfiguration('headless')
 
     # Arguments.
     use_sim_time = DeclareLaunchArgument(
@@ -47,8 +50,8 @@ def generate_launch_description():
         os.path.join(system_dir, 'worlds'),
     )
 
-    # 1. Ignition Gazebo.
-    ign_gazebo = IncludeLaunchDescription(
+    # 1. Gazebo Sim.
+    ign_gazebo_headless = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
                 FindPackageShare('ros_gz_sim'),
@@ -58,6 +61,20 @@ def generate_launch_description():
         launch_arguments={
             'gz_args': ['-r -s ', world_path],  # -s = server only (headless)
         }.items(),
+        condition=IfCondition(headless_config),
+    )
+
+    ign_gazebo_gui = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('ros_gz_sim'),
+                'launch', 'gz_sim.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'gz_args': ['-r ', world_path],
+        }.items(),
+        condition=UnlessCondition(headless_config),
     )
 
     # 2. Robot state publisher.
@@ -68,7 +85,7 @@ def generate_launch_description():
             'robot_description': ParameterValue(
                 Command(['xacro ', urdf_path]), value_type=str
             ),
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
+            'use_sim_time': use_sim_time_config,
         }],
         output='screen',
     )
@@ -117,7 +134,7 @@ def generate_launch_description():
             ('/camera/depth_image', '/robocept/camera/depth/image_rect_raw'),
         ],
         parameters=[{
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
+            'use_sim_time': use_sim_time_config,
         }],
         output='screen',
     )
@@ -126,7 +143,8 @@ def generate_launch_description():
         use_sim_time,
         headless,
         ign_resource_path,
-        ign_gazebo,
+        ign_gazebo_headless,
+        ign_gazebo_gui,
         robot_state_publisher,
         spawn_robot,
         bridge,
