@@ -31,7 +31,11 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     system_dir = get_package_share_directory('robocept_system')
     urdf_path = os.path.join(system_dir, 'urdf', 'robocept.urdf.xacro')
-    world_path = os.path.join(system_dir, 'worlds', 'robocept_test.sdf')
+    world_path = PathJoinSubstitution([
+        FindPackageShare('robocept_system'),
+        'worlds',
+        LaunchConfiguration('world_file'),
+    ])
     use_sim_time_config = LaunchConfiguration('use_sim_time')
     headless_config = LaunchConfiguration('headless')
     drive_cmd_topic_config = LaunchConfiguration('drive_cmd_topic')
@@ -54,6 +58,11 @@ def generate_launch_description():
         'odom_topic',
         default_value='/odom',
         description='ROS topic bridged from Gazebo odometry.',
+    )
+    world_file = DeclareLaunchArgument(
+        'world_file',
+        default_value='robocept_test.sdf',
+        description='SDF world file in robocept_system/worlds/ (use robocept_eval_multi_obstacle.sdf for cluttered eval).',
     )
 
     # Set IGN resource path so Ignition can find our models.
@@ -158,6 +167,7 @@ def generate_launch_description():
         headless,
         drive_cmd_topic,
         odom_topic,
+        world_file,
         ign_resource_path,
         ign_gazebo_headless,
         ign_gazebo_gui,

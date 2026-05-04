@@ -1,0 +1,256 @@
+<?xml version="1.0"?>
+<!--
+  Evaluation world for robocept / ZSL sim (Ignition Fortress).
+  Same 3m x 3m enclosure as robocept_test but with richer static clutter:
+  narrow passage (yellow pillars), extra boxes/cylinders, and a diagonal barrier
+  to stress depth + lidar conditioned policies.
+-->
+<sdf version="1.8">
+  <world name="robocept_eval_multi_obstacle">
+
+    <!-- Physics -->
+    <physics name="1ms" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Required plugins for Ignition Fortress -->
+    <plugin filename="ignition-gazebo-physics-system" name="ignition::gazebo::systems::Physics"/>
+    <plugin filename="ignition-gazebo-scene-broadcaster-system" name="ignition::gazebo::systems::SceneBroadcaster"/>
+    <plugin filename="ignition-gazebo-user-commands-system" name="ignition::gazebo::systems::UserCommands"/>
+    <plugin filename="ignition-gazebo-sensors-system" name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="ignition-gazebo-contact-system" name="ignition::gazebo::systems::Contact"/>
+    <plugin filename="ignition-gazebo-imu-system" name="ignition::gazebo::systems::Imu"/>
+
+    <!-- Lighting -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Ground plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>100 100</size></plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>100 100</size></plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- North wall -->
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0 1.5 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+          <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- South wall -->
+    <model name="wall_south">
+      <static>true</static>
+      <pose>0 -1.5 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+          <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- East wall -->
+    <model name="wall_east">
+      <static>true</static>
+      <pose>1.5 0 0.25 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+          <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- West wall -->
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-1.5 0 0.25 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>3.0 0.05 0.5</size></box></geometry>
+          <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Red box obstacle -->
+    <model name="obstacle_1">
+      <static>true</static>
+      <pose>0.7 0.5 0.15 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.3 0.3 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.3 0.3 0.3</size></box></geometry>
+          <material><ambient>0.8 0.2 0.2 1</ambient><diffuse>0.8 0.2 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Green box obstacle -->
+    <model name="obstacle_2">
+      <static>true</static>
+      <pose>-0.5 -0.6 0.15 0 0 0.3</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.25 0.5 0.3</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.25 0.5 0.3</size></box></geometry>
+          <material><ambient>0.2 0.8 0.2 1</ambient><diffuse>0.2 0.8 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Blue cylinder obstacle -->
+    <model name="obstacle_3">
+      <static>true</static>
+      <pose>-0.3 0.8 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.15</radius><length>0.4</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.15</radius><length>0.4</length></cylinder></geometry>
+          <material><ambient>0.2 0.2 0.8 1</ambient><diffuse>0.2 0.2 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Narrow passage (~0.28 m clearance) facing -X -->
+    <model name="narrow_gate_a">
+      <static>true</static>
+      <pose>-0.75 -0.20 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.14 0.14 0.40</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.14 0.14 0.40</size></box></geometry>
+          <material><ambient>1.0 0.85 0.2 1</ambient><diffuse>1.0 0.85 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="narrow_gate_b">
+      <static>true</static>
+      <pose>-0.75 0.20 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.14 0.14 0.40</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.14 0.14 0.40</size></box></geometry>
+          <material><ambient>1.0 0.85 0.2 1</ambient><diffuse>1.0 0.85 0.2 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Diagonal plank (forces non-trivial curvature) -->
+    <model name="diagonal_barrier">
+      <static>true</static>
+      <pose>-0.2 0.35 0.12 0 0 0.55</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1.05 0.06 0.24</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1.05 0.06 0.24</size></box></geometry>
+          <material><ambient>0.6 0.35 0.15 1</ambient><diffuse>0.6 0.35 0.15 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Small clutter cluster near south-west -->
+    <model name="clutter_small_a">
+      <static>true</static>
+      <pose>-1.05 -1.05 0.09 0 0 0.4</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.18 0.22 0.18</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.18 0.22 0.18</size></box></geometry>
+          <material><ambient>0.9 0.3 0.6 1</ambient><diffuse>0.9 0.3 0.6 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="clutter_pole">
+      <static>true</static>
+      <pose>0.45 -0.75 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><cylinder><radius>0.08</radius><length>0.50</length></cylinder></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.08</radius><length>0.50</length></cylinder></geometry>
+          <material><ambient>0.3 0.9 0.9 1</ambient><diffuse>0.3 0.9 0.9 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Low wide block (alternative path constraint) -->
+    <model name="low_platform">
+      <static>true</static>
+      <pose>0.35 0.75 0.06 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.55 0.35 0.12</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.55 0.35 0.12</size></box></geometry>
+          <material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
